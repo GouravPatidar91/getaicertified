@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, type MouseEvent } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
@@ -9,6 +9,32 @@ const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const goToHowItWorks = (e?: MouseEvent<HTMLAnchorElement>) => {
+    if (e) e.preventDefault();
+
+    // Close mobile menu if open
+    setIsOpen(false);
+
+    // If already on home page, just scroll to the section
+    if (location.pathname === "/") {
+      const el = document.getElementById("HowItWorks");
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth" });
+      }
+      return;
+    }
+
+    // Otherwise navigate to home and then scroll after a short delay to allow DOM to render
+    navigate("/");
+    setTimeout(() => {
+      const el = document.getElementById("HowItWorks");
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth" });
+      }
+    }, 120);
+  };
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
@@ -27,7 +53,11 @@ const Navbar = () => {
             <a href="#" className="text-foreground hover:text-primary transition-colors font-medium">
               Home
             </a>
-            <a href="#HowItWorks" className="text-foreground hover:text-primary transition-colors font-medium">
+            <a
+              href="Curriculum"
+              onClick={(e) => goToHowItWorks(e)}
+              className="text-foreground hover:text-primary transition-colors font-medium"
+            >
               Curriculum
             </a>
             <a href="#pricing" className="text-foreground hover:text-primary transition-colors font-medium">
@@ -70,7 +100,8 @@ const Navbar = () => {
               Home
             </a>
             <a
-              href="#HowItWorks"
+              href="Curriculum"
+              onClick={(e) => goToHowItWorks(e)}
               className="block px-4 py-2 rounded-lg hover:bg-accent/10 transition-colors font-medium"
             >
               Curriculum

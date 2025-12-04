@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdminCheck } from '@/hooks/useAdminCheck';
@@ -7,6 +7,8 @@ import { StatsOverview } from '@/components/admin/StatsOverview';
 import { PaymentManagement } from '@/components/admin/PaymentManagement';
 import { UserManagement } from '@/components/admin/UserManagement';
 import { LessonManagement } from '@/components/admin/LessonManagement';
+import { CertificateManagement } from '@/components/admin/CertificateManagement';
+import { QuizManagement } from '@/components/admin/QuizManagement';
 import { Loader2 } from 'lucide-react';
 
 export default function AdminDashboard() {
@@ -43,6 +45,10 @@ export default function AdminDashboard() {
         return <UserManagement />;
       case 'lessons':
         return <LessonManagement />;
+      case 'quizzes':
+        return <QuizManagement />;
+      case 'certificates':
+        return <CertificateManagement />;
       default:
         return <StatsOverview />;
     }

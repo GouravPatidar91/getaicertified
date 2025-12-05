@@ -20,15 +20,23 @@ serve(async (req) => {
       );
     }
 
-    const supabase = createClient(
+    // Client for user authentication
+    const supabaseAuth = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
       { global: { headers: { Authorization: authHeader } } }
     );
 
+    // Admin client for database operations (bypasses RLS)
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
     // Get the authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
     if (authError || !user) {
+      console.error('Auth error:', authError);
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
@@ -52,14 +60,14 @@ serve(async (req) => {
       );
     }
 
-    console.log('Initiating payment for user:', user.id, 'provider:', paymentProvider, 'amount:', price);
+    console.log('Initiating payment for user:', user.id, 'amount:', price);
 
     let finalPrice = price;
     let couponId = null;
 
-    // Validate coupon if provided
+    // Validate coupon if provided (using admin client)
     if (couponCode) {
-      const { data: couponData, error: couponError } = await supabase.rpc('validate_coupon', {
+      const { data: couponData, error: couponError } = await supabaseAdmin.rpc('validate_coupon', {
         p_code: couponCode,
         p_user_id: user.id,
         p_amount: price
@@ -85,13 +93,13 @@ serve(async (req) => {
       }
     }
 
-    // Create payment record
-    const { data: payment, error: paymentError } = await supabase
+    // Create pending payment record using admin client (bypasses RLS)
+    const { data: payment, error: paymentError } = await supabaseAdmin
       .from('payments')
       .insert({
         user_id: user.id,
         amount: finalPrice,
-        provider: paymentProvider,
+        provider: 'razorpay',
         status: 'pending',
         currency: 'INR'
       })
@@ -106,122 +114,12 @@ serve(async (req) => {
       );
     }
 
-    console.log('Payment record created:', payment.id);
+    console.log('Pending payment record created:', payment.id);
 
-    let providerPayload;
-
-    // Handle provider-specific payment initialization
-    if (paymentProvider === 'razorpay') {
-      const razorpayKeyId = Deno.env.get('RAZORPAY_KEY_ID');
-      const razorpayKeySecret = Deno.env.get('RAZORPAY_KEY_SECRET');
-
-      if (!razorpayKeyId || !razorpayKeySecret) {
-        console.error('Razorpay credentials not configured');
-        return new Response(
-          JSON.stringify({ error: 'Payment provider not configured' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-        );
-      }
-
-      // Create Razorpay order
-      const razorpayOrder = await fetch('https://api.razorpay.com/v1/orders', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Basic ' + btoa(`${razorpayKeyId}:${razorpayKeySecret}`)
-        },
-        body: JSON.stringify({
-          amount: finalPrice * 100, // Convert to paise
-          currency: 'INR',
-          receipt: payment.id,
-          notes: {
-            user_id: user.id,
-            payment_id: payment.id
-          }
-        })
-      });
-
-      const orderData = await razorpayOrder.json();
-
-      if (!razorpayOrder.ok) {
-        console.error('Razorpay order creation failed:', orderData);
-        return new Response(
-          JSON.stringify({ error: 'Failed to create payment order' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-        );
-      }
-
-      // Update payment with provider order ID
-      await supabase
-        .from('payments')
-        .update({ provider_order_id: orderData.id })
-        .eq('id', payment.id);
-
-      providerPayload = orderData;
-      console.log('Razorpay order created:', orderData.id);
-
-    } else if (paymentProvider === 'stripe') {
-      const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY');
-
-      if (!stripeSecretKey) {
-        console.error('Stripe credentials not configured');
-        return new Response(
-          JSON.stringify({ error: 'Payment provider not configured' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-        );
-      }
-
-      // Create Stripe checkout session
-      const stripeSession = await fetch('https://api.stripe.com/v1/checkout/sessions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Authorization': `Bearer ${stripeSecretKey}`
-        },
-        body: new URLSearchParams({
-          'payment_method_types[]': 'card',
-          'line_items[0][price_data][currency]': 'inr',
-          'line_items[0][price_data][product_data][name]': 'AI Certification Program',
-          'line_items[0][price_data][unit_amount]': (finalPrice * 100).toString(),
-          'line_items[0][quantity]': '1',
-          'mode': 'payment',
-          'success_url': `${Deno.env.get('SUPABASE_URL')}/functions/v1/complete-enrollment?session_id={CHECKOUT_SESSION_ID}&payment_id=${payment.id}`,
-          'cancel_url': `${req.headers.get('origin')}/dashboard?payment=cancelled`,
-          'client_reference_id': payment.id,
-          'customer_email': user.email || ''
-        })
-      });
-
-      const sessionData = await stripeSession.json();
-
-      if (!stripeSession.ok) {
-        console.error('Stripe session creation failed:', sessionData);
-        return new Response(
-          JSON.stringify({ error: 'Failed to create payment session' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-        );
-      }
-
-      // Update payment with provider session ID
-      await supabase
-        .from('payments')
-        .update({ provider_order_id: sessionData.id })
-        .eq('id', payment.id);
-
-      providerPayload = { url: sessionData.url };
-      console.log('Stripe session created:', sessionData.id);
-
-    } else {
-      return new Response(
-        JSON.stringify({ error: 'Invalid payment provider' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-      );
-    }
-
-    // Apply coupon if one was used
+    // Apply coupon if one was used (using admin client)
     if (couponId) {
       const discountAmount = price - finalPrice;
-      await supabase.rpc('apply_coupon', {
+      await supabaseAdmin.rpc('apply_coupon', {
         p_coupon_id: couponId,
         p_user_id: user.id,
         p_payment_id: payment.id,
@@ -231,14 +129,17 @@ serve(async (req) => {
       console.log('Coupon applied to payment');
     }
 
+    // Return success with Razorpay.me link
     return new Response(
       JSON.stringify({
         success: true,
         payment: {
           id: payment.id,
           amount: finalPrice,
-          provider: paymentProvider,
-          providerPayload
+          provider: 'razorpay',
+          providerPayload: {
+            paymentLinkUrl: 'http://Razorpay.me/@campaynprivatelimited'
+          }
         }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }

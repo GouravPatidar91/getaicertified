@@ -88,7 +88,7 @@ const Contact = () => {
                 </CardHeader>
                 <CardContent>
                   <a href="mailto:support@example.com" className="text-muted-foreground hover:text-primary transition-colors">
-                    support@example.com
+                    support@getaicertified.online
                   </a>
                 </CardContent>
               </Card>
@@ -101,7 +101,7 @@ const Contact = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-muted-foreground">+91 98765 43210</p>
+                  <p className="text-muted-foreground">+91 95899 44719</p>
                   <p className="text-sm text-muted-foreground/70">Mon-Fri, 9AM-6PM IST</p>
                 </CardContent>
               </Card>

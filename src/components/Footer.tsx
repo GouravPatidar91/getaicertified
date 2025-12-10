@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Mail, Linkedin, Twitter, Github } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
@@ -48,9 +49,10 @@ const Footer = () => {
             <h4 className="font-semibold mb-4 text-background">Support</h4>
             <ul className="space-y-2 text-background/80">
               <li><a href="#" className="hover:text-accent transition-colors">Help Center</a></li>
-              <li><a href="#" className="hover:text-accent transition-colors">Contact Us</a></li>
-              <li><a href="#" className="hover:text-accent transition-colors">Privacy Policy</a></li>
-              <li><a href="#" className="hover:text-accent transition-colors">Terms of Service</a></li>
+              <li><Link to="/contact" className="hover:text-accent transition-colors">Contact Us</Link></li>
+              <li><Link to="/privacy" className="hover:text-accent transition-colors">Privacy Policy</Link></li>
+              <li><Link to="/terms" className="hover:text-accent transition-colors">Terms of Service</Link></li>
+              <li><Link to="/refund-policy" className="hover:text-accent transition-colors">Refund Policy</Link></li>
             </ul>
           </div>
         </div>
@@ -61,9 +63,9 @@ const Footer = () => {
             Powered by Campayn
           </p>
           <div className="flex gap-6 text-sm text-background/70">
-            <a href="#" className="hover:text-accent transition-colors">Privacy</a>
-            <a href="#" className="hover:text-accent transition-colors">Terms</a>
-            <a href="#" className="hover:text-accent transition-colors">Refund Policy</a>
+            <Link to="/privacy" className="hover:text-accent transition-colors">Privacy</Link>
+            <Link to="/terms" className="hover:text-accent transition-colors">Terms</Link>
+            <Link to="/refund-policy" className="hover:text-accent transition-colors">Refund Policy</Link>
           </div>
         </div>
       </div>
